@@ -13,20 +13,36 @@ git clone https://github.com/Fzkls/cocos-demo.git
 cd cocos-demo
 ```
 
-2. 用 Cocos Creator 2.x 打开项目根目录。
+2. 用 Cocos Creator 2.4.x 打开项目根目录。
 3. 首次打开后，编辑器会自动生成 `library/`、`local/`、`temp/` 等目录，这些目录已经在 `.gitignore` 中忽略。
+4. 等待资源导入完成。
+5. 打开 `assets/scenes/Game.fire`。
+6. 点击预览运行。
 
-## 创建运行场景
+## 当前启动场景
 
-当前仓库提交的是轻量代码基座，场景文件建议由本地编辑器生成，避免手写 `.fire` 造成 UUID / meta 不一致。
+仓库已经提交默认场景：
 
-操作步骤：
+```txt
+assets/scenes/Game.fire
+assets/scenes/Game.fire.meta
+```
 
-1. 在 `assets/scenes` 下新建场景：`Game.fire`。
-2. 场景中创建 `Canvas`。
-3. 将 `assets/scripts/game/GameScene.ts` 挂载到 `Canvas` 节点。
-4. 保存场景。
-5. 在编辑器中预览运行。
+场景结构：
+
+```txt
+Game.fire
+  Canvas
+    GameScene.ts
+```
+
+启动配置：
+
+```json
+{
+  "start-scene": "db://assets/scenes/Game.fire"
+}
+```
 
 `GameScene` 会在运行时自动创建：
 
@@ -45,6 +61,27 @@ cd cocos-demo
 - 如果形成横向或纵向三连，会消除、计分、下落补齐。
 - 支持连续消除。
 - 最高分使用 `cc.sys.localStorage` 保存。
+
+## 静态资源说明
+
+当前版本不依赖图片、prefab 或音频资源：
+
+- 方块使用 `cc.Graphics` 动态绘制。
+- 方块符号使用 `cc.Label` 显示。
+- UI 由 `GameScene.ts` 运行时创建。
+- `assets/resources` 和 `assets/prefabs` 暂时只保留目录。
+
+这样做是为了优先保证第一版能运行，避免 Cocos Creator 2.x 因图片、prefab、SpriteFrame UUID 或 `.meta` 引用不一致导致资源丢失。
+
+## 如果运行报错
+
+优先把 Cocos Creator Console 里的完整错误贴出来，重点看：
+
+- TypeScript 编译错误
+- `Can not find uuid`
+- `deserialize failed`
+- `GameScene` 挂载失败
+- `cc.Graphics` 或 `cc.Label` 运行时报错
 
 ## 后续可以增强
 
