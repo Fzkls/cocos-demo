@@ -1,8 +1,9 @@
 import EventBus from "../core/EventBus";
 import { GAME_CONFIG, GAME_EVENTS } from "../core/Constants";
+import AudioManager from "../manager/AudioManager";
 import Match3Model from "./Match3Model";
 import Tile from "./Tile";
-import { MatchPosition, TileCell } from "./GameTypes";
+import { LevelConfig, MatchGroup, MatchPosition, TileCell } from "./GameTypes";
 
 const { ccclass, property } = cc._decorator;
 
@@ -30,10 +31,23 @@ export default class Match3Board extends cc.Component {
   private inputLocked: boolean = false;
   private score: number = 0;
   private moves: number = 0;
+  private moveLimit: number = GAME_CONFIG.DEFAULT_MOVE_LIMIT;
+  private targetScore: number = GAME_CONFIG.DEFAULT_TARGET_SCORE;
+  private level: LevelConfig | null = null;
+  private gameOver: boolean = false;
 
   protected onLoad(): void {
     this.node.name = "Match3Board";
-    this.initBoard();
+  }
+
+  public configure(level: LevelConfig): void {
+    this.level = level;
+    this.rows = level.rows;
+    this.cols = level.cols;
+    this.tileTypes = level.tileTypes;
+    this.targetScore = level.targetScore;
+    this.moveLimit = level.moveLimit;
+    this.restart();
   }
 
   public restart(): void {
@@ -42,10 +56,12 @@ export default class Match3Board extends cc.Component {
     this.moves = 0;
     this.selectedTile = null;
     this.inputLocked = false;
+    this.gameOver = false;
     this.initBoard();
     EventBus.emit(GAME_EVENTS.GAME_RESET);
-    EventBus.emit(GAME_EVENTS.SCORE_CHANGED, { score: this.score });
-    EventBus.emit(GAME_EVENTS.MOVES_CHANGED, { moves: this.moves });
+    this.emitGoal();
+    this.emitScore();
+    this.emitMoves();
   }
 
   private initBoard(): void {
@@ -53,11 +69,8 @@ export default class Match3Board extends cc.Component {
       this.boardRoot = new cc.Node("BoardRoot");
       this.boardRoot.parent = this.node;
     }
-
     this.model = new Match3Model(this.rows, this.cols, this.tileTypes);
     this.createAllTiles();
-    EventBus.emit(GAME_EVENTS.SCORE_CHANGED, { score: this.score });
-    EventBus.emit(GAME_EVENTS.MOVES_CHANGED, { moves: this.moves });
   }
 
   private createAllTiles(): void {
@@ -71,6 +84,7 @@ export default class Match3Board extends cc.Component {
       var view = this.ensureTileView(cell);
       view.node.setPosition(this.getTilePosition(cell.row, cell.col));
       view.node.scale = 1;
+      view.node.opacity = 255;
     }
   }
 
@@ -81,9 +95,11 @@ export default class Match3Board extends cc.Component {
       tileNode.parent = this.boardRoot;
       var spawnPos = this.getTilePosition(cell.row, cell.col);
       tileNode.setPosition(spawnPos.x, spawnPos.y + 120);
-      tileNode.scale = 0.2;
       view = tileNode.addComponent(Tile);
       this.tileViews[cell.id] = view;
+      view.init(cell, this.tileSize, this.handleTileTap.bind(this));
+      view.playSpawn();
+      return view;
     }
 
     view.init(cell, this.tileSize, this.handleTileTap.bind(this));
@@ -91,9 +107,11 @@ export default class Match3Board extends cc.Component {
   }
 
   private handleTileTap(tile: Tile): void {
-    if (this.inputLocked || !tile.cell || !this.model) {
+    if (this.inputLocked || this.gameOver || !tile.cell || !this.model) {
       return;
     }
+
+    AudioManager.playClick();
 
     if (!this.selectedTile) {
       this.selectTile(tile);
@@ -134,49 +152,66 @@ export default class Match3Board extends cc.Component {
     this.selectedTile = null;
   }
 
-  private trySwap(first: MatchPosition, second: MatchPosition): void {
-    if (!this.model) {
+  private trySwap(first: TileCell, second: TileCell): void {
+    if (!this.model || this.moves >= this.moveLimit) {
       return;
     }
 
     this.inputLocked = true;
     this.clearSelection();
+    var hasSpecial = first.kind !== "normal" || second.kind !== "normal";
     this.model.swap(first, second);
+    AudioManager.playSwap();
+
     this.syncAllTiles(true, () => {
       if (!this.model) {
         return;
       }
-      var matches = this.model.findMatches();
-      if (matches.length === 0) {
+
+      if (hasSpecial) {
+        var specialPositions = this.model.collectSpecialRemoval(first, second);
+        if (specialPositions.length > 0) {
+          this.consumeMove();
+          AudioManager.playSpecial();
+          this.removePositionsAndContinue(specialPositions);
+          return;
+        }
+      }
+
+      var groups = this.model.findMatchGroups();
+      if (groups.length === 0) {
         this.model.swap(first, second);
         this.syncAllTiles(true, () => {
           this.inputLocked = false;
+          AudioManager.playFail();
           EventBus.emit(GAME_EVENTS.TOAST, "没有可消除的组合");
         });
         return;
       }
 
-      this.moves += 1;
-      EventBus.emit(GAME_EVENTS.MOVES_CHANGED, { moves: this.moves });
-      this.processMatches();
+      this.consumeMove();
+      this.processMatchGroups(groups, { row: first.row, col: first.col }, true);
     });
   }
 
-  private processMatches(): void {
+  private consumeMove(): void {
+    this.moves += 1;
+    this.emitMoves();
+  }
+
+  private processMatchGroups(groups: MatchGroup[], preferred: MatchPosition | null, allowSpecial: boolean): void {
     if (!this.model) {
       this.inputLocked = false;
       return;
     }
 
-    var matches = this.model.findMatches();
-    if (matches.length === 0) {
-      this.inputLocked = false;
+    if (groups.length === 0) {
+      this.afterBoardSettled();
       return;
     }
 
-    var removed = this.model.removePositions(matches);
-    this.score += removed.length * GAME_CONFIG.BASE_SCORE;
-    EventBus.emit(GAME_EVENTS.SCORE_CHANGED, { score: this.score });
+    var removed = this.model.removeMatchGroups(groups, preferred, allowSpecial);
+    this.addScore(removed.length * GAME_CONFIG.BASE_SCORE);
     this.playRemoveTiles(removed, () => {
       if (!this.model) {
         return;
@@ -184,10 +219,98 @@ export default class Match3Board extends cc.Component {
       this.model.collapseAndRefill();
       this.syncAllTiles(true, () => {
         this.scheduleOnce(() => {
-          this.processMatches();
+          this.processMatches(false);
         }, GAME_CONFIG.REMOVE_DELAY);
       });
     });
+  }
+
+  private processMatches(allowSpecial: boolean): void {
+    if (!this.model) {
+      this.inputLocked = false;
+      return;
+    }
+
+    var groups = this.model.findMatchGroups();
+    if (groups.length === 0) {
+      this.afterBoardSettled();
+      return;
+    }
+
+    this.processMatchGroups(groups, null, allowSpecial);
+  }
+
+  private removePositionsAndContinue(positions: MatchPosition[]): void {
+    if (!this.model) {
+      this.inputLocked = false;
+      return;
+    }
+
+    var removed = this.model.removePositions(positions);
+    this.addScore(removed.length * GAME_CONFIG.BASE_SCORE);
+    this.playRemoveTiles(removed, () => {
+      if (!this.model) {
+        return;
+      }
+      this.model.collapseAndRefill();
+      this.syncAllTiles(true, () => {
+        this.scheduleOnce(() => {
+          this.processMatches(false);
+        }, GAME_CONFIG.REMOVE_DELAY);
+      });
+    });
+  }
+
+  private afterBoardSettled(): void {
+    if (!this.model) {
+      this.inputLocked = false;
+      return;
+    }
+
+    if (!this.model.hasAvailableMove()) {
+      EventBus.emit(GAME_EVENTS.TOAST, "没有可移动组合，已自动洗牌");
+      AudioManager.playShuffle();
+      this.model.shuffleUntilPlayable();
+      this.syncAllTiles(true, () => {
+        this.finishTurn();
+      });
+      return;
+    }
+
+    this.finishTurn();
+  }
+
+  private finishTurn(): void {
+    this.inputLocked = false;
+    if (this.score >= this.targetScore) {
+      this.gameOver = true;
+      AudioManager.playWin();
+      EventBus.emit(GAME_EVENTS.GAME_OVER, {
+        win: true,
+        score: this.score,
+        targetScore: this.targetScore
+      });
+      return;
+    }
+
+    if (this.moves >= this.moveLimit) {
+      this.gameOver = true;
+      AudioManager.playLose();
+      EventBus.emit(GAME_EVENTS.GAME_OVER, {
+        win: false,
+        score: this.score,
+        targetScore: this.targetScore
+      });
+    }
+  }
+
+  private addScore(delta: number): void {
+    if (delta <= 0) {
+      return;
+    }
+    this.score += delta;
+    AudioManager.playMatch();
+    this.emitScore();
   }
 
   private playRemoveTiles(removed: TileCell[], callback: Function): void {
@@ -212,6 +335,7 @@ export default class Match3Board extends cc.Component {
         continue;
       }
       delete this.tileViews[cell.id];
+      this.playBurstAt(view.node.position);
       this.playRemoveTile(view, done);
     }
   }
@@ -223,6 +347,26 @@ export default class Match3Board extends cc.Component {
       }
       done();
     });
+  }
+
+  private playBurstAt(position: cc.Vec2 | cc.Vec3): void {
+    if (!this.boardRoot) {
+      return;
+    }
+    for (var i = 0; i < 5; i++) {
+      var dot = new cc.Node("BurstDot");
+      dot.parent = this.boardRoot;
+      dot.width = 8;
+      dot.height = 8;
+      dot.setPosition(position.x, position.y);
+      var g = dot.addComponent(cc.Graphics);
+      g.fillColor = new cc.Color(255, 245, 160, 255);
+      g.circle(0, 0, 4);
+      g.fill();
+      var angle = (Math.PI * 2 * i) / 5;
+      var target = cc.v2(position.x + Math.cos(angle) * 38, position.y + Math.sin(angle) * 38);
+      dot.runAction(cc.sequence(cc.spawn(cc.moveTo(0.22, target), cc.fadeOut(0.22)), cc.removeSelf()));
+    }
   }
 
   private syncAllTiles(animate: boolean, callback?: Function): void {
@@ -257,7 +401,10 @@ export default class Match3Board extends cc.Component {
       if (animate) {
         view.node.runAction(
           cc.sequence(
-            cc.spawn(cc.moveTo(GAME_CONFIG.SWAP_DURATION, target), cc.scaleTo(0.12, 1)),
+            cc.spawn(
+              cc.moveTo(GAME_CONFIG.DROP_DURATION, target).easing(cc.easeSineInOut()),
+              cc.scaleTo(0.12, 1)
+            ),
             cc.callFunc(function () {
               done();
             })
@@ -266,9 +413,31 @@ export default class Match3Board extends cc.Component {
       } else {
         view.node.setPosition(target);
         view.node.scale = 1;
+        view.node.opacity = 255;
         done();
       }
     }
+  }
+
+  private emitGoal(): void {
+    if (this.level) {
+      EventBus.emit(GAME_EVENTS.GOAL_CHANGED, { level: this.level });
+    }
+  }
+
+  private emitScore(): void {
+    EventBus.emit(GAME_EVENTS.SCORE_CHANGED, {
+      score: this.score,
+      targetScore: this.targetScore
+    });
+  }
+
+  private emitMoves(): void {
+    EventBus.emit(GAME_EVENTS.MOVES_CHANGED, {
+      moves: this.moves,
+      movesLeft: Math.max(0, this.moveLimit - this.moves),
+      moveLimit: this.moveLimit
+    });
   }
 
   private getTilePosition(row: number, col: number): cc.Vec2 {
@@ -281,13 +450,8 @@ export default class Match3Board extends cc.Component {
   }
 
   private clearTiles(): void {
-    for (var id in this.tileViews) {
-      if (this.tileViews.hasOwnProperty(id)) {
-        var view = this.tileViews[id];
-        if (view && view.node && cc.isValid(view.node)) {
-          view.node.destroy();
-        }
-      }
+    if (this.boardRoot) {
+      this.boardRoot.removeAllChildren();
     }
     this.tileViews = {};
   }
