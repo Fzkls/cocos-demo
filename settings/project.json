@@ -3,7 +3,7 @@
   "design-resolution-height": 1334,
   "fit-width": true,
   "fit-height": true,
-  "start-scene": "current",
+  "start-scene": "db://assets/scenes/Game.fire",
   "group-list": ["default"],
   "collision-matrix": [[true]]
 }
