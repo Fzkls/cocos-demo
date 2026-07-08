@@ -1,0 +1,31 @@
+{
+  "levels": [
+    {
+      "id": 1,
+      "name": "甜品工坊 1",
+      "rows": 8,
+      "cols": 8,
+      "tileTypes": 5,
+      "targetScore": 500,
+      "moveLimit": 24
+    },
+    {
+      "id": 2,
+      "name": "甜品工坊 2",
+      "rows": 8,
+      "cols": 8,
+      "tileTypes": 6,
+      "targetScore": 900,
+      "moveLimit": 26
+    },
+    {
+      "id": 3,
+      "name": "甜品工坊 3",
+      "rows": 8,
+      "cols": 8,
+      "tileTypes": 6,
+      "targetScore": 1300,
+      "moveLimit": 28
+    }
+  ]
+}
