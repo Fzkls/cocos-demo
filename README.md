@@ -1,11 +1,13 @@
 # Cocos Match-3 Demo
 
-一个基于 **Cocos Creator 2.x + TypeScript** 的消消乐项目基座。
+一个基于 **Cocos Creator 2.x + TypeScript** 的消消乐 Demo 项目。
 
 ## 当前状态
 
-已经完成第一版核心代码：
+已经完成第一版可运行工程：
 
+- 已提交默认启动场景 `assets/scenes/Game.fire`
+- 已配置启动场景 `db://assets/scenes/Game.fire`
 - 8 x 8 消消乐棋盘
 - 方块运行时绘制，无需先准备美术资源
 - 点击相邻方块交换
@@ -23,7 +25,8 @@
 assets/
   prefabs/                 # prefab 占位
   resources/               # resources 占位
-  scenes/                  # 场景目录，本地创建 Game.fire
+  scenes/
+    Game.fire              # 默认启动场景
   scripts/
     core/                  # 配置、事件、日志
     game/                  # 消消乐核心玩法
@@ -47,10 +50,9 @@ cd cocos-demo
 ```
 
 2. 使用 **Cocos Creator 2.4.x** 打开项目根目录。
-3. 在 `assets/scenes` 下创建 `Game.fire`。
-4. 场景中创建 `Canvas`。
-5. 将 `assets/scripts/game/GameScene.ts` 挂载到 `Canvas`。
-6. 保存场景并预览。
+3. 等待编辑器导入资源。
+4. 打开 `assets/scenes/Game.fire`。
+5. 点击预览运行。
 
 详细说明见：[`docs/SETUP.md`](docs/SETUP.md)。
 
@@ -58,6 +60,7 @@ cd cocos-demo
 
 | 文件 | 作用 |
 |---|---|
+| `assets/scenes/Game.fire` | 默认启动场景，包含 Canvas 和 GameScene 挂载 |
 | `assets/scripts/game/Match3Model.ts` | 纯数据棋盘逻辑 |
 | `assets/scripts/game/Match3Board.ts` | 棋盘交互、交换、消除、补齐 |
 | `assets/scripts/game/Tile.ts` | 单个方块绘制与动画 |
@@ -65,9 +68,9 @@ cd cocos-demo
 | `assets/scripts/core/EventBus.ts` | 全局事件总线 |
 | `assets/scripts/manager/StorageManager.ts` | 最高分本地存储 |
 
-## 重要说明
+## 静态资源策略
 
-当前没有直接提交 `.fire` 场景文件，是刻意保守处理：Cocos Creator 2.x 的场景和 `.meta` 文件依赖编辑器生成的 UUID，手写容易导致挂载脚本失效。第一版先提交可维护的代码基座，建议你在本地编辑器生成场景后再提交 `Game.fire` 和相关 `.meta` 文件。
+当前版本不依赖图片、prefab 或音频资源。方块和基础 UI 都通过 `cc.Graphics`、`cc.Label` 在运行时动态创建，目的是先保证玩法链路稳定可运行。后续接正式美术时，再把 `Tile.ts` 从代码绘制替换为 SpriteFrame 渲染。
 
 ## 后续计划
 
