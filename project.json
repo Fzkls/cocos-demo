@@ -1,0 +1,8 @@
+{
+  "engine": "cocos-creator-js",
+  "packages": "packages",
+  "name": "cocos-match3-demo",
+  "uuid": "c7b4ff34-77dd-42b0-947d-1a986ad94c65",
+  "version": "2.4.10",
+  "id": "cocos-match3-demo"
+}
