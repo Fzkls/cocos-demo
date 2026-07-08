@@ -28,15 +28,15 @@ export default class GameScene extends cc.Component {
   }
 
   protected onDestroy(): void {
-    EventBus.off(GAME_EVENTS.SCORE_CHANGED, this.onScoreChanged);
-    EventBus.off(GAME_EVENTS.MOVES_CHANGED, this.onMovesChanged);
-    EventBus.off(GAME_EVENTS.TOAST, this.onToast);
+    EventBus.off(GAME_EVENTS.SCORE_CHANGED, this.onScoreChanged, this);
+    EventBus.off(GAME_EVENTS.MOVES_CHANGED, this.onMovesChanged, this);
+    EventBus.off(GAME_EVENTS.TOAST, this.onToast, this);
   }
 
   private bindEvents(): void {
-    EventBus.on(GAME_EVENTS.SCORE_CHANGED, this.onScoreChanged);
-    EventBus.on(GAME_EVENTS.MOVES_CHANGED, this.onMovesChanged);
-    EventBus.on(GAME_EVENTS.TOAST, this.onToast);
+    EventBus.on(GAME_EVENTS.SCORE_CHANGED, this.onScoreChanged, this);
+    EventBus.on(GAME_EVENTS.MOVES_CHANGED, this.onMovesChanged, this);
+    EventBus.on(GAME_EVENTS.TOAST, this.onToast, this);
   }
 
   private createBackground(): void {
@@ -86,11 +86,7 @@ export default class GameScene extends cc.Component {
     label.lineHeight = 32;
     labelNode.color = cc.Color.WHITE;
 
-    button.on(cc.Node.EventType.TOUCH_END, () => {
-      if (this.board) {
-        this.board.restart();
-      }
-    }, this);
+    button.on(cc.Node.EventType.TOUCH_END, this.handleRestart, this);
   }
 
   private createToast(): void {
@@ -113,17 +109,23 @@ export default class GameScene extends cc.Component {
     return label;
   }
 
-  private onScoreChanged = (payload?: any): void => {
+  private handleRestart(): void {
+    if (this.board) {
+      this.board.restart();
+    }
+  }
+
+  private onScoreChanged(payload?: any): void {
     var nextScore = payload && typeof payload.score === "number" ? payload.score : 0;
     this.refreshScore(nextScore);
-  };
+  }
 
-  private onMovesChanged = (payload?: any): void => {
+  private onMovesChanged(payload?: any): void {
     var moves = payload && typeof payload.moves === "number" ? payload.moves : 0;
     this.refreshMoves(moves);
-  };
+  }
 
-  private onToast = (message?: any): void => {
+  private onToast(message?: any): void {
     if (!this.toastLabel) {
       return;
     }
@@ -131,7 +133,7 @@ export default class GameScene extends cc.Component {
     this.toastLabel.node.stopAllActions();
     this.toastLabel.node.opacity = 255;
     this.toastLabel.node.runAction(cc.sequence(cc.delayTime(0.8), cc.fadeOut(0.3)));
-  };
+  }
 
   private refreshScore(score: number): void {
     this.score = score;
