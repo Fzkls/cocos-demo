@@ -1,0 +1,20 @@
+# Cocos Creator generated folders
+library/
+local/
+temp/
+build/
+packages/
+
+# Dependencies
+node_modules/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.log
+
+# Build artifacts
+*.apk
+*.ipa
+*.keystore
