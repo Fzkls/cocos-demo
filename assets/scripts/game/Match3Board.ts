@@ -61,35 +61,32 @@ export default class Match3Board extends cc.Component {
   }
 
   private createAllTiles(): void {
-    if (!this.model || !this.boardRoot) {
+    if (!this.model) {
       return;
     }
 
     var cells = this.model.getCells();
     for (var i = 0; i < cells.length; i++) {
-      this.createOrRefreshTile(cells[i], false);
+      var cell = cells[i];
+      var view = this.ensureTileView(cell);
+      view.node.setPosition(this.getTilePosition(cell.row, cell.col));
+      view.node.scale = 1;
     }
   }
 
-  private createOrRefreshTile(cell: TileCell, animate: boolean): Tile {
+  private ensureTileView(cell: TileCell): Tile {
     var view = this.tileViews[cell.id];
     if (!view) {
       var tileNode = new cc.Node(cell.id);
-      tileNode.parent = this.boardRoot!;
-      tileNode.scale = animate ? 0.2 : 1;
+      tileNode.parent = this.boardRoot;
+      var spawnPos = this.getTilePosition(cell.row, cell.col);
+      tileNode.setPosition(spawnPos.x, spawnPos.y + 120);
+      tileNode.scale = 0.2;
       view = tileNode.addComponent(Tile);
       this.tileViews[cell.id] = view;
     }
 
     view.init(cell, this.tileSize, this.handleTileTap.bind(this));
-    var target = this.getTilePosition(cell.row, cell.col);
-    if (animate) {
-      view.node.stopAllActions();
-      view.node.runAction(cc.spawn(cc.moveTo(GAME_CONFIG.SWAP_DURATION, target), cc.scaleTo(0.12, 1)));
-    } else {
-      view.node.setPosition(target);
-      view.node.scale = 1;
-    }
     return view;
   }
 
@@ -215,13 +212,17 @@ export default class Match3Board extends cc.Component {
         continue;
       }
       delete this.tileViews[cell.id];
-      view.playRemove(() => {
-        if (view && view.node && cc.isValid(view.node)) {
-          view.node.destroy();
-        }
-        done();
-      });
+      this.playRemoveTile(view, done);
     }
+  }
+
+  private playRemoveTile(view: Tile, done: Function): void {
+    view.playRemove(() => {
+      if (view && view.node && cc.isValid(view.node)) {
+        view.node.destroy();
+      }
+      done();
+    });
   }
 
   private syncAllTiles(animate: boolean, callback?: Function): void {
@@ -250,13 +251,13 @@ export default class Match3Board extends cc.Component {
 
     for (var i = 0; i < cells.length; i++) {
       var cell = cells[i];
-      var view = this.createOrRefreshTile(cell, false);
+      var view = this.ensureTileView(cell);
       var target = this.getTilePosition(cell.row, cell.col);
       view.node.stopAllActions();
       if (animate) {
         view.node.runAction(
           cc.sequence(
-            cc.moveTo(GAME_CONFIG.SWAP_DURATION, target),
+            cc.spawn(cc.moveTo(GAME_CONFIG.SWAP_DURATION, target), cc.scaleTo(0.12, 1)),
             cc.callFunc(function () {
               done();
             })
@@ -264,6 +265,7 @@ export default class Match3Board extends cc.Component {
         );
       } else {
         view.node.setPosition(target);
+        view.node.scale = 1;
         done();
       }
     }
