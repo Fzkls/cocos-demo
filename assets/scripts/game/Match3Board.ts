@@ -159,7 +159,9 @@ export default class Match3Board extends cc.Component {
 
     this.inputLocked = true;
     this.clearSelection();
-    var hasSpecial = first.kind !== "normal" || second.kind !== "normal";
+    var firstWasSpecial = first.kind !== "normal";
+    var secondWasSpecial = second.kind !== "normal";
+    var hasSpecial = firstWasSpecial || secondWasSpecial;
     this.model.swap(first, second);
     AudioManager.playSwap();
 
@@ -170,6 +172,12 @@ export default class Match3Board extends cc.Component {
 
       if (hasSpecial) {
         var specialPositions = this.model.collectSpecialRemoval(first, second);
+        if (firstWasSpecial) {
+          specialPositions.push({ row: first.row, col: first.col });
+        }
+        if (secondWasSpecial) {
+          specialPositions.push({ row: second.row, col: second.col });
+        }
         if (specialPositions.length > 0) {
           this.consumeMove();
           AudioManager.playSpecial();
@@ -349,7 +357,7 @@ export default class Match3Board extends cc.Component {
     });
   }
 
-  private playBurstAt(position: cc.Vec2 | cc.Vec3): void {
+  private playBurstAt(position: any): void {
     if (!this.boardRoot) {
       return;
     }
